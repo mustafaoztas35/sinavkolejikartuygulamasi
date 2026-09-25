@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sınav GrowUp - Kart Sistemi</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <style>
+        /* --- TASARIM --- */
+        :root { --bg: #f3f4f6; --card-bg: #ffffff; --blue: #3b82f6; --yellow: #eab308; --red: #ef4444; --dark: #111827; --green: #10b981; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+        .header-row { display: flex; justify-content: center; align-items: center; width: 100%; position: relative; margin-bottom: 10px; }
+        h1 { color: var(--dark); font-size: 2rem; text-align: center; margin: 0; }
+        .status-container { display: flex; align-items: center; gap: 5px; font-size: 0.85rem; color: #666; margin-bottom: 15px; }
+        .status-dot { width: 10px; height: 10px; background: #ccc; border-radius: 50%; display: inline-block; }
+        .online { background: #22c55e; box-shadow: 0 0 8px #22c55e; }
+        .admin-btn { position: absolute; right: 0; top: 0; background: white; border: 1px solid #ccc; padding: 5px 15px; border-radius: 20px; cursor: pointer; font-size: 1rem; color: #555; }
+        .teacher-box { position: sticky; top: 10px; z-index: 100; background: white; padding: 10px 25px; border-radius: 50px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); margin-bottom: 20px; border: 3px solid #ef4444; display: flex; align-items: center; gap: 10px; transition: border-color 0.3s; }
+        .teacher-box.dolu { border-color: var(--green); }
+        #teacherName { border: none; font-size: 1.1rem; outline: none; font-weight: bold; color: #333; width: 220px; }
+        #teacherName::placeholder { color: #ef4444; font-weight: normal; }
+        .grid-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; width: 100%; max-width: 1200px; }
+        .class-card { background: var(--card-bg); border-radius: 12px; padding: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border-top: 5px solid #9ca3af; display: flex; flex-direction: column; gap: 10px; }
+        .class-name { font-size: 1.8rem; font-weight: 800; color: #374151; }
+        
+        /* Yeni Eklenen Puan Rozeti Stilleri */
+        .total-score { font-size: 1.2rem; font-weight: 800; padding: 4px 10px; border-radius: 8px; }
+        .score-pos { background: #d1fae5; color: #065f46; }
+        .score-neg { background: #fee2e2; color: #991b1b; }
+        .score-neu { background: #e5e7eb; color: #374151; }
+
+        .stats-row { display: flex; justify-content: space-between; background: #f9fafb; padding: 8px; border-radius: 8px; }
+        .stat-box { text-align: center; width: 30%; position: relative; }
+        .stat-val { font-size: 1.5rem; font-weight: bold; display: block; }
+        .stat-lbl { font-size: 0.7rem; text-transform: uppercase; color: #666; }
+        .del-btn { background: #e5e7eb; border: none; cursor: pointer; font-size: 0.7rem; padding: 4px 8px; border-radius: 4px; margin-top: 5px; width: 100%; color: #555; font-weight: bold; transition: 0.2s; } 
+        .del-btn:hover { background: var(--red); color: white; }
+        .action-row { display: flex; gap: 5px; margin-top: 5px; }
+        .act-btn { flex: 1; border: none; padding: 12px; border-radius: 6px; cursor: pointer; font-weight: bold; color: white; font-size: 0.9rem; transition: transform 0.1s; }
+        .act-btn:active { transform: scale(0.95); }
+        .b-blue { background: var(--blue); } .b-yellow { background: var(--yellow); color: #422006; } .b-red { background: var(--red); }
+        .admin-panel { margin-top: 40px; display: none; gap: 10px; flex-wrap: wrap; justify-content: center; padding: 20px; background: #e5e7eb; border-radius: 15px; width: 90%; max-width: 800px; border: 2px dashed #666; }
+        .f-btn { padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; color: white; }
+        .popup-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: flex; justify-content: center; align-items: center; z-index: 9999; }
+        .popup-card { width: 260px; padding: 30px; border-radius: 20px; text-align: center; color: white; transform: scale(0); opacity: 0; box-shadow: 0 20px 50px rgba(0,0,0,0.4); border: 5px solid white; }
+        .popup-icon { font-size: 4rem; display: block; margin-bottom: 10px; }
+        .popup-msg { font-size: 1.5rem; font-weight: bold; }
+        .anim-active { animation: popUpAnim 1.5s ease-out forwards; }
+        @keyframes popUpAnim { 0% { transform: scale(0) rotate(-15deg); opacity: 0; } 20% { transform: scale(1.2) rotate(0deg); opacity: 1; } 30% { transform: scale(1); } 80% { transform: scale(1); opacity: 1; } 100% { transform: translateY(-100px); opacity: 0; } }
+        
+        .info-msg { text-align:center; color:#666; font-style: italic; margin-top:20px; display:none; }
+    </style>
+</head>
+<body>
+    <div class="popup-overlay"><div id="popupCard" class="popup-card"><span id="popIcon" class="popup-icon"></span><span id="popMsg" class="popup-msg"></span></div></div>
+    <div class="header-row"><h1>🎓 Sınav GrowUp</h1><button class="admin-btn" onclick="yoneticiGirisi()">🔒 Yönetici</button></div>
+    <div class="status-container"><span id="statusDot" class="status-dot"></span><span id="statusMsg">Sunucuya Bağlanılıyor...</span></div>
+    
+    <div class="teacher-box" id="teacherBox"><span>✏️</span>
+        <input type="text" id="teacherName" placeholder="Adınızı Giriniz... (Örn: Mesut)" autocomplete="off" onkeyup="isimKontrol()">
+    </div>
+    
+    <div class="grid-container" id="app">
+        <p style="text-align:center; width:100%; font-size:1.2rem; color:#666;">Veritabanına bağlanılıyor...</p>
+    </div>
+    <div id="emptyMsg" class="info-msg"></div>
+
+    <div class="admin-panel" id="adminPanel">
+        <h3 style="width:100%; text-align:center; margin-top:0;">🔓 Yönetici Paneli</h3>
+        <button class="f-btn" style="background:#8b5cf6" onclick="liderlik()">🏆 Sıralamayı Güncelle</button>
+        <button class="f-btn" style="background:#10b981" onclick="excelOzetIndir()">📊 Puan Durumu</button>
+        <button class="f-btn" style="background:#059669" onclick="excelLogIndir()">📜 İşlem Geçmişi</button>
+        <button class="f-btn" style="background:#6b7280" onclick="sifirla()">⚠️ Veritabanını Sıfırla</button>
+    </div>
+
+    <script>
+        // ============================================================
+        // 🛠️ ÖĞRETMEN LİSTESİ (GÜNCEL) 🛠️
+        // ============================================================
+        const OGRETMEN_ATAMALARI = {
+            "NAGEHAN USTA": ["5/A", "5/B", "5/C", "5/D", "5/E", "6/A", "6/B", "6/C", "7/A", "7/B", "7/C", "7/D", "8/A", "8/B", "8/C", "8/D"],
+            "MERVE DEMİR": ["5/A", "5/B", "5/C", "5/D", "5/E", "6/A", "6/B", "6/C", "7/A", "7/B", "7/C", "7/D", "8/A", "8/B", "8/C", "8/D"],
+            "ÜMMÜHAN USTA GÜLER": ["5/A", "5/B", "5/C", "5/D", "5/E", "6/A", "6/B", "6/C", "7/A", "7/B", "7/C", "7/D", "8/A", "8/B", "8/C", "8/D"],
+            "MERVE MUMYAKMAZ": ["5/A", "5/B", "5/C", "5/D", "5/E", "6/A", "6/B", "6/C", "7/A", "7/B", "7/C", "7/D", "8/A", "8/B", "8/C", "8/D"],
+            "MİNE YILMAZ": ["5/A", "5/B", "5/C", "5/D", "5/E", "6/A", "6/B", "6/C", "7/A", "7/B", "7/C", "7/D", "8/A", "8/B", "8/C", "8/D"],
+            "YASEMİN DOĞAN": ["5/A", "5/B", "5/C", "5/D", "5/E", "6/A", "6/B", "6/C"],
+            "İLAYDA DÜNDAR": ["6/A", "6/B", "6/C", "8/A", "8/B", "8/C", "8/D"],
+            "MUSA SAZAK": ["5/D", "5/E"],
+            "MELİKE SARGIN": ["5/A", "5/B", "5/C", "5/D", "5/E", "6/A", "6/B", "6/C", "7/A", "7/B", "7/C", "7/D"],
+            "BERAT AYŞEN": ["7/B", "7/C", "8/B", "8/D"],
+            "NİLÜFER GÜVEN": ["5/A", "5/B", "5/C", "5/D", "5/E", "6/A", "6/B", "6/C", "7/A", "7/B", "7/C", "7/D"],
+            "TUĞÇE UYGUN BASTACI": ["6/A", "6/C", "8/A", "8/B"],
+            "BURCU SÜZER": ["8/A", "8/B", "8/C", "8/D"],
+            "GÖKÇE DİLAN AKPINAR": ["8/A", "8/B", "8/C", "8/D"],
+            "NEZİRE ESEN": ["5/A", "5/B", "5/C", "5/D", "5/E"],
+            "DUYGU ASLAN": ["5/A", "5/B", "5/C", "5/D", "5/E", "6/A", "6/B", "6/C", "7/A", "7/B", "7/C", "7/D"],
+            "AHMET ALAGÖZ": ["5/A", "5/B", "5/C", "5/D", "5/E", "6/A", "6/B", "6/C", "7/A", "7/B", "7/C", "7/D", "8/A", "8/B", "8/C", "8/D"],
+            "ELİF KAYIM": ["6/A", "6/B", "6/C",  "7/A", "7/B", "7/C", "7/D"],
+            "BEGÜM KARABACAK": ["7/A", "7/B", "7/C", "7/D"],
+            "ÖZGE ÖZKOÇ": ["8/A", "8/B", "8/C", "8/D"],
+            "BÜŞRA BETÜL DİNÇ": ["5/A", "5/B", "5/C", "5/D", "5/E"],
+            "BANU AKMAN": ["5/A", "5/B", "5/C", "5/D", "5/E", "6/A", "6/B", "6/C", "7/A", "7/B", "7/C", "7/D", "8/A", "8/B", "8/C", "8/D"],
+            "SİNEM DÖNMEZ DİNÇER": ["5/A", "5/B", "5/C", "5/D", "5/E"],
+            "TANSU MELİSA KURUCU": ["7/A", "7/B", "7/C", "7/D"],
+            "HAZAL KOCABAY": ["5/A", "5/B", "5/C", "5/D", "5/E", "8/A", "8/B", "8/C", "8/D"],
+            "SERAP ÇAKMAK": ["6/A", "6/B", "6/C"],
+            "MUSTAFA ÖZTAŞ": ["5/A", "5/B", "5/C", "5/D", "5/E", "6/A", "6/B", "6/C", "7/A", "7/B", "7/C", "7/D", "8/A", "8/B", "8/C", "8/D"],
+            "EBRU AYDIN DÜZGÜN": ["7/A", "7/D", "8/C", "8/A"],
+            "SEDA ÖZBAYKIZ": ["7/A", "7/B", "7/C", "7/D"],
+            "ESRA ERGEN": ["5/A", "5/B"],
+            "ALTAN YILDIZ": ["5/A", "5/B", "5/C", "5/D", "5/E", "6/A", "6/B", "6/C"],
+            "BETÜL DEMİREZEN": ["5/C", "6/B"],
+            "SELCEN YAMAN": ["5/A", "5/B", "5/C"],
+            "TUĞÇE KARACA": ["6/A", "6/B", "6/C", "8/A", "8/B", "8/C", "8/D"],
+            "ÇAĞATAY YAZICI": ["5/A", "5/B", "5/C", "5/D", "5/E", "6/A", "6/B", "6/C", "7/A", "7/B", "7/C", "7/D", "8/A", "8/B", "8/C", "8/D"]
+            "GİZEM KIZILKAYA": ["5/A", "5/B", "5/C", "5/D", "5/E", "6/A", "6/B", "6/C", "7/A", "7/B", "7/C", "7/D", "8/A", "8/B", "8/C", "8/D"]
+        };
+        // ============================================================
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyD0R32fp2cULCDKoUvjNgBMdh3TH8894CM",
+            authDomain: "kart-uygulamasi.firebaseapp.com",
+            databaseURL: "https://kart-uygulamasi-default-rtdb.firebaseio.com",
+            projectId: "kart-uygulamasi",
+            storageBucket: "kart-uygulamasi.firebasestorage.app",
+            messagingSenderId: "257942355484",
+            appId: "1:257942355484:web:954b1c7adaa80f482769d9",
+            measurementId: "G-H9REZRJ1D9"
+        };
+
+        try { firebase.initializeApp(firebaseConfig); } catch (e) { console.error(e); }
+        const db = firebase.database();
+
+        const SINIFLAR = ["5/A", "5/B", "5/C", "5/D", "5/E", "6/A", "6/B", "6/C", "7/A", "7/B", "7/C", "7/D", "8/A", "8/B", "8/C", "8/D"];
+        let localData = [], localLogs = [], isAdminMode = false, audioCtx = null;
+        
+        // ===========================================
+        // 🔑 GÜNCEL YÖNETİCİ ŞİFRESİ
+        const YONETICI_SIFRESI = "2758"; 
+        // ===========================================
+
+        const dataRef = db.ref('siniflar'), logsRef = db.ref('logs');
+
+        dataRef.on('value', (snapshot) => {
+            const val = snapshot.val();
+            if (!val) { dataRef.set(SINIFLAR.map(ad => ({ ad: ad, m: 0, s: 0, k: 0 }))); } 
+            else {
+                localData = val; ciz();
+                document.getElementById('statusDot').className = 'status-dot online';
+                document.getElementById('statusMsg').innerText = 'Sistem Online';
+            }
+        }, (error) => {
+            document.getElementById('app').innerHTML = `<p style="color:red;">Veritabanı Hatası (Rules kontrol edin).</p>`;
+        });
+
+        logsRef.on('value', (s) => { localLogs = s.val() ? Object.values(s.val()) : []; });
+
+        // --- EKRAN ÇİZME ---
+        function ciz() {
+            const appDiv = document.getElementById('app');
+            const emptyMsg = document.getElementById('emptyMsg');
+            const girilenIsim = normalize(document.getElementById('teacherName').value);
+            
+            appDiv.innerHTML = "";
+            let gorunurKartSayisi = 0;
+
+            // Öğretmen listesinde ara
+            let izinliSiniflar = [];
+            for (const [hocaAdi, siniflar] of Object.entries(OGRETMEN_ATAMALARI)) {
+                if (normalize(hocaAdi).includes(girilenIsim) && girilenIsim.length > 0) {
+                    izinliSiniflar = siniflar;
+                    break; 
+                }
+            }
+
+            localData.forEach((s, i) => {
+                if (isAdminMode || izinliSiniflar.includes(s.ad)) {
+                    gorunurKartSayisi++;
+                    
+                    // TOPLAM PUAN HESAPLAMASI
+                    let toplam = (s.m * 3) + (s.s * 2) - (s.k * 2);
+                    let badgeColor = toplam > 0 ? 'score-pos' : (toplam < 0 ? 'score-neg' : 'score-neu');
+
+                    appDiv.innerHTML += `<div class="class-card">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div class="class-name">${s.ad}</div>
+                        <div class="total-score ${badgeColor}">${toplam} Puan</div>
+                    </div>
+                    <div class="stats-row">
+                    <div class="stat-box" style="color:#3b82f6"><span class="stat-val">${s.m}</span><span class="stat-lbl">MAVİ</span><button class="del-btn" onclick="sil(${i},'m')">Azalt (-)</button></div>
+                    <div class="stat-box" style="color:#ca8a04"><span class="stat-val">${s.s}</span><span class="stat-lbl">SARI</span><button class="del-btn" onclick="sil(${i},'s')">Azalt (-)</button></div>
+                    <div class="stat-box" style="color:#ef4444"><span class="stat-val">${s.k}</span><span class="stat-lbl">KIRMIZI</span><button class="del-btn" onclick="sil(${i},'k')">Azalt (-)</button></div></div>
+                    <div class="action-row"><button class="act-btn b-blue" onclick="islem(${i},'m')">MAVİ 🔵</button><button class="act-btn b-yellow" onclick="islem(${i},'s')">SARI 🟡</button><button class="act-btn b-red" onclick="islem(${i},'k')">KIRMIZI 🔴</button></div></div>`;
+                }
+            });
+
+            if (gorunurKartSayisi === 0 && !isAdminMode) {
+                emptyMsg.style.display = "block";
+                if(girilenIsim.length > 0) emptyMsg.innerHTML = "Bu isimle eşleşen sınıf bulunamadı.<br>Lütfen listedeki tam adınızı deneyin.";
+                else emptyMsg.innerHTML = "Lütfen adınızı giriniz.";
+            } else {
+                emptyMsg.style.display = "none";
+            }
+        }
+
+        function islem(i, t) {
+            if(!isimKontrol()) { alert("⛔ İsim giriniz!"); document.getElementById('teacherName').focus(); return; }
+            let r = t==='m'?'Mavi':t==='s'?'Sarı':'Kırmızı';
+            if(confirm(`${localData[i].ad} sınıfına ${r} Kart verilsin mi?`)) {
+                db.ref(`siniflar/${i}/${t}`).set(localData[i][t]+1);
+                logsRef.push({ tarih: new Date().toLocaleDateString('tr-TR'), saat: new Date().toLocaleTimeString('tr-TR'), ogretmen: document.getElementById('teacherName').value, sinif: localData[i].ad, islem: `${r} Kart Verildi` });
+                sesCal(t); animasyon(t);
+            }
+        }
+
+        function sil(i, t) {
+            if(!isimKontrol()) { alert("İsim giriniz."); document.getElementById('teacherName').focus(); return; }
+            if(localData[i][t]>0 && confirm("Puan geri alınsın mı?")) {
+                db.ref(`siniflar/${i}/${t}`).set(localData[i][t]-1);
+                logsRef.push({ tarih: new Date().toLocaleDateString('tr-TR'), saat: new Date().toLocaleTimeString('tr-TR'), ogretmen: document.getElementById('teacherName').value, sinif: localData[i].ad, islem: `Puan Geri Alındı (${t})` });
+            }
+        }
+
+        function yoneticiGirisi() {
+            if(isAdminMode) { isAdminMode=false; document.getElementById('adminPanel').style.display='none'; document.querySelector('.admin-btn').innerText="🔒 Yönetici"; ciz(); return; }
+            let p = prompt("Yönetici Şifresi:"); if(p===YONETICI_SIFRESI) { isAdminMode=true; document.getElementById('adminPanel').style.display='flex'; document.querySelector('.admin-btn').innerText="🔓 Çıkış"; ciz(); } else if(p!==null) alert("Hatalı Şifre");
+        }
+        
+        function isimKontrol() { 
+            let v=document.getElementById('teacherName').value.trim(); 
+            let b=document.getElementById('teacherBox'); 
+            ciz(); 
+            if(v.length>2){b.classList.add('dolu');return true;} 
+            b.classList.remove('dolu');return false; 
+        }
+
+        function normalize(text) { return text.toLocaleLowerCase('tr-TR').trim(); }
+        function sesCal(t) { try{if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended')audioCtx.resume();let o=audioCtx.createOscillator(),g=audioCtx.createGain();o.connect(g);g.connect(audioCtx.destination);if(t==='m'){o.type='sine';o.frequency.setValueAtTime(500,audioCtx.currentTime);o.frequency.exponentialRampToValueAtTime(1000,audioCtx.currentTime+0.1);g.gain.setValueAtTime(0.3,audioCtx.currentTime);g.gain.exponentialRampToValueAtTime(0.01,audioCtx.currentTime+0.5);}else{o.type='sawtooth';o.frequency.setValueAtTime(200,audioCtx.currentTime);g.gain.setValueAtTime(0.2,audioCtx.currentTime);g.gain.exponentialRampToValueAtTime(0.01,audioCtx.currentTime+0.3);}o.start();o.stop(audioCtx.currentTime+0.5);}catch(e){}}
+        function animasyon(t) { let k=document.getElementById('popupCard'),i=document.getElementById('popIcon'),m=document.getElementById('popMsg'); if(t==='m'){k.style.background="linear-gradient(135deg,#3b82f6,#2563eb)";i.innerText="🏆";m.innerText="TEBRİKLER!\nMAVİ KART";if(typeof confetti==='function')confetti({particleCount:150,spread:70,origin:{y:0.5,x:0.5}});}else if(t==='s'){k.style.background="linear-gradient(135deg,#ca8a04,#a16207)";i.innerText="⚠️";m.innerText="DİKKAT!\nSARI KART";}else{k.style.background="linear-gradient(135deg,#ef4444,#b91c1c)";i.innerText="⛔";m.innerText="UYARI!\nKIRMIZI KART";}k.classList.remove('anim-active');void k.offsetWidth;k.classList.add('anim-active');}
+        function liderlik() { alert("Sıralama Excel raporunda."); }
+        
+        // EXCEL ÇIKTISINA DA TOPLAM PUAN EKLENDİ
+        function excelOzetIndir() { let c="data:text/csv;charset=utf-8,\uFEFFSınıf;Mavi;Sarı;Kırmızı;Toplam Puan\n";localData.forEach(s=>{ let t=(s.m*3)+(s.s*2)-(s.k*2); c+=`${s.ad};${s.m};${s.s};${s.k};${t}\n` });indir(c,"Puan_Durumu.csv"); }
+        
+        function excelLogIndir() { let c="data:text/csv;charset=utf-8,\uFEFFTarih;Saat;Öğretmen;Sınıf;İşlem\n";localLogs.forEach(l=>c+=`${l.tarih};${l.saat};${l.ogretmen};${l.sinif};${l.islem}\n`);indir(c,"Islem_Gecmisi.csv"); }
+        function indir(c,n) { let l=document.createElement("a");l.setAttribute("href",encodeURI(c));l.setAttribute("download",n);document.body.appendChild(l);l.click();document.body.removeChild(l); }
+        function sifirla() { if(confirm("TÜM VERİTABANI SİLİNECEK!")) { dataRef.set(SINIFLAR.map(a=>({ad:a,m:0,s:0,k:0}))); logsRef.set(null); alert("Sıfırlandı."); } }
+    </script>
+</body>
+</html>
