@@ -147,11 +147,23 @@
 
         dataRef.on('value', (snapshot) => {
             const val = snapshot.val();
-            if (!val) { dataRef.set(SINIFLAR.map(ad => ({ ad: ad, m: 0, s: 0, k: 0 }))); } 
-            else {
-                localData = val; ciz();
+            if (!val) {
+                dataRef.set(SINIFLAR.map(ad => ({ ad: ad, m: 0, s: 0, k: 0 })));
+            } else {
+                // Mevcut puanları koruyarak eksik sınıfları otomatik tamamla.
+                const mevcutListe = Array.isArray(val) ? val.filter(Boolean) : Object.values(val).filter(Boolean);
+                const sinifMap = new Map(mevcutListe.map(s => [s.ad, s]));
+                const tamamlanmisListe = SINIFLAR.map(ad => sinifMap.get(ad) || ({ ad: ad, m: 0, s: 0, k: 0 }));
+                const eksikSinifVar = SINIFLAR.some(ad => !sinifMap.has(ad));
+
+                localData = tamamlanmisListe;
+                ciz();
                 document.getElementById('statusDot').className = 'status-dot online';
                 document.getElementById('statusMsg').innerText = 'Sistem Online';
+
+                if (eksikSinifVar) {
+                    dataRef.set(tamamlanmisListe);
+                }
             }
         }, (error) => {
             document.getElementById('app').innerHTML = `<p style="color:red;">Veritabanı Hatası (Rules kontrol edin).</p>`;
